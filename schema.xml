@@ -8,7 +8,7 @@
     </attributes>
 
     <types>
-        <type name="dyn.ah62d4rv4ge80g4dr">  <!-- add one <type>...</type> entry for each UTI that you need to define.
+        <type name="com.microsoft.chm">  <!-- add one <type>...</type> entry for each UTI that you need to define.
             <note>
                 CHM file.
             </note>
