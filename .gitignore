@@ -7,5 +7,6 @@
 *.xcworkspacedata
 *.xcuserstate
 *.xccheckout
+*.xcscmblueprint
 xcuserdata
 build
