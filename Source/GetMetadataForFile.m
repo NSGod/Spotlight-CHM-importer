@@ -9,7 +9,8 @@
 #import <Foundation/Foundation.h>
 #import <strings.h>
 #import <string.h>
-#import "chm_lib.h"
+#import <CHM/CHM.h>
+
 
 // XSLT responsible for stripping out all the tags.
 static NSString * const TagsStripXSLTString = @"\
@@ -47,8 +48,8 @@ NSString * const com_marcoyuen_chmImporter_SectionTitles = @"com_marcoyuen_chm_S
 {
     static unsigned char buf[BUFSIZ + 1];
     bzero(buf, BUFSIZ+1);
-    LONGUINT64 totalFileLen = ui->length, offset = 0;
-    LONGINT64  readLen = 0;
+    uint64_t totalFileLen = ui->length, offset = 0;
+    int64_t  readLen = 0;
     NSMutableString *stringData = [[NSMutableString alloc] init];
     
     while (totalFileLen != offset) {
@@ -72,8 +73,8 @@ NSString * const com_marcoyuen_chmImporter_SectionTitles = @"com_marcoyuen_chm_S
 {
     static unsigned char buf[BUFSIZ + 1];
     bzero(buf, BUFSIZ+1);
-    LONGUINT64 totalFileLen = ui->length, offset = 0;
-    LONGINT64  readLen = 0;
+    uint64_t totalFileLen = ui->length, offset = 0;
+    int64_t  readLen = 0;
     NSMutableData *chmData = [[NSMutableData alloc] init];
     
     while (totalFileLen != offset) {
