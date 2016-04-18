@@ -59,7 +59,7 @@
 				<string>public.composite-content </string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Compiled HTML File</string>
+			<string>Compiled HTML Archive</string>
 			<key>UTTypeIdentifier</key>
 			<string>com.microsoft.chm</string>
 			<key>UTTypeTagSpecification</key>
