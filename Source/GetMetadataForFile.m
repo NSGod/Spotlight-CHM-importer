@@ -188,6 +188,18 @@ metadata_cleanup:
     return retEnumVal;
 }
 
+
+
+#define MD_DEBUG 1
+
+#if MD_DEBUG
+static NSString * const MDBundleIdentifierKey = @"com.markdouma.mdimporter.CHM";
+#define MDLog(...) NSLog(__VA_ARGS__)
+#else
+#define MDLog(...)
+#endif
+
+
 #pragma mark -
 #pragma mark Importer entrance function
 Boolean 
@@ -198,18 +210,19 @@ GetMetadataForFile(void* thisInterface,
 {
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     
-    char fileNameBuf[[(NSString *)pathToFile length] + 1];
+	MDLog(@"%@; %s(): file == \"%@\"", MDBundleIdentifierKey, __FUNCTION__, (NSString *)pathToFile);
+	
     struct chmFile *chmHandle = NULL;
     Boolean retBool = FALSE;
     NSMutableDictionary *ctxDict = [[NSMutableDictionary alloc] init];
     
     // Convert the CFString into a C string.
-    [(NSString *)pathToFile getCString: fileNameBuf maxLength: [(NSString *) pathToFile length] + 1 encoding: DEFAULT_ENCODING];
-    
+	const char *filePath = [(NSString *)pathToFile fileSystemRepresentation];
+	
     // Open the chm file then enumerate the objects within it.
-    chmHandle = chm_open(fileNameBuf);
+    chmHandle = chm_open(filePath);
     if (NULL == chmHandle) {
-        fprintf(stderr, "Cannot open '%s'\n", fileNameBuf);
+        fprintf(stderr, "Cannot open '%s'\n", filePath);
         retBool = FALSE;
         goto cleanup;
     }
