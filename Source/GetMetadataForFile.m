@@ -55,7 +55,7 @@ Boolean GetMetadataForFile(void *thisInterface, CFMutableDictionaryRef attribute
 	
 	NSMutableArray *sectionTitles = [NSMutableArray array];
 	
-	NSArray *sectionLinkItems = documentFile.tableOfContents.items.children;
+	NSArray *sectionLinkItems = documentFile.tableOfContents.linkItems.children;
 	
 	// 1. The first element is _usually_ the title of the book.
 	// 2. Everything else---title heading.
