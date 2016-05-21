@@ -11,7 +11,7 @@
 #import "CHMSpotlightHMTLDocument.h"
 
 
-#define MD_DEBUG 0
+#define MD_DEBUG 1
 #define MD_DEBUG_PERFORMANCE 0
 
 static NSString * const MDBundleIdentifierKey = @"com.markdouma.mdimporter.CHM";
@@ -47,7 +47,7 @@ Boolean GetMetadataForFile(void *thisInterface, CFMutableDictionaryRef attribute
 	CHMDocumentFile *documentFile = [[CHMDocumentFile alloc] initWithContentsOfFile:(NSString *)pathToFile error:NULL];
 	
 	if (documentFile == nil) {
-		NSLog(@"%@; %s(): failed to create CHMDocumentFile for item at \"%@\"", MDBundleIdentifierKey, __FUNCTION__, pathToFile);
+		NSLog(@"%@; %s(): failed to create CHMDocumentFile for file at \"%@\"", MDBundleIdentifierKey, __FUNCTION__, pathToFile);
 		goto cleanup;
 	}
 	
@@ -62,14 +62,18 @@ Boolean GetMetadataForFile(void *thisInterface, CFMutableDictionaryRef attribute
 	
 	BOOL setTitle = NO;
 	
+	if (documentFile.title) {
+		[mAttributes setObject:documentFile.title forKey:(id)kMDItemTitle];
+		setTitle = YES;
+	}
+	
 	for (CHMLinkItem *linkItem in sectionLinkItems) {
+		NSString *sectionTitle = linkItem.name;
 		if (setTitle == NO) {
-			NSString *title = linkItem.name;
-			if (title) [mAttributes setObject:title forKey:(id)kMDItemTitle];
+			if (sectionTitle) [mAttributes setObject:sectionTitle forKey:(id)kMDItemTitle];
 			setTitle = YES;
 			continue;
 		}
-		NSString *sectionTitle = linkItem.name;
 		if (sectionTitle) [sectionTitles addObject:sectionTitle];
 	}
 	
@@ -80,6 +84,10 @@ Boolean GetMetadataForFile(void *thisInterface, CFMutableDictionaryRef attribute
 	NSMutableString *mString = [NSMutableString string];
 	
 	NSArray *allArchiveItems = documentFile.allArchiveItems;
+	
+	NSUInteger spotDocCreationErrorCount = 0;
+	
+	NSError *exampleError = nil;
 	
 	for (CHMArchiveItem *archiveItem in allArchiveItems) {
 		
@@ -92,7 +100,11 @@ Boolean GetMetadataForFile(void *thisInterface, CFMutableDictionaryRef attribute
 		CHMSpotlightHMTLDocument *htmlDocument = [[CHMSpotlightHMTLDocument alloc] initWithArchiveItem:archiveItem inDocumentFile:documentFile error:&error];
 		
 		if (htmlDocument == nil) {
-			NSLog(@"%@; %s(): failed to create CHMSpotlightHMTLDocument for archive item at \"%@\"; error == %@", MDBundleIdentifierKey, __FUNCTION__, archiveItem.path, error);
+			if (exampleError != error) {
+				[exampleError release];
+				exampleError = [error retain];
+			}
+			spotDocCreationErrorCount++;
 			[localPool release];
 			continue;
 		}
@@ -104,11 +116,7 @@ Boolean GetMetadataForFile(void *thisInterface, CFMutableDictionaryRef attribute
 			continue;
 		}
 		
-		if (mString.length) {
-			[mString appendFormat:@" %@", string];
-		} else {
-			[mString setString:string];
-		}
+		(mString.length ? [mString appendFormat:@" %@", string] : [mString setString:string]);
 		
 		if (mString.length >= CHM_MAX_FILE_SIZE) {
 			[htmlDocument release];
@@ -121,6 +129,12 @@ Boolean GetMetadataForFile(void *thisInterface, CFMutableDictionaryRef attribute
 	}
 	
 	if (mString.length) [mAttributes setObject:mString forKey:(id)kMDItemTextContent];
+	
+	if (spotDocCreationErrorCount) {
+		NSLog(@"%@; %s(): *** ERROR: failed to create %lu CHMSpotlightHMTLDocument(s) for file at \"%@\"; example error == %@", MDBundleIdentifierKey, __FUNCTION__, (unsigned long)spotDocCreationErrorCount, (NSString *)pathToFile, exampleError);
+	}
+	
+	[exampleError release];
 	
 #if MD_DEBUG_PERFORMANCE
 	NSTimeInterval elapsedTime = ABS([startDate timeIntervalSinceNow]);
