@@ -71,7 +71,7 @@ static NSCharacterSet *whitespaceCharacterSet = nil;
 		archiveItem = [anArchiveItem retain];
 		documentFile = [aDocumentFile retain];
 		
-		NSData *pageData = [documentFile dataForObjectAtPath:archiveItem.path];
+		NSData *pageData = archiveItem.data;
 		if (pageData == nil) {
 			if (outError) {
 				*outError = [NSError errorWithDomain:NSCocoaErrorDomain
