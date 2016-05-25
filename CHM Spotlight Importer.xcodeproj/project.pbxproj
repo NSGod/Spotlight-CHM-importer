@@ -11,7 +11,7 @@
 		8D576314048677EA00EA77CD /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0AA1909FFE8422F4C02AAC07 /* CoreFoundation.framework */; };
 		8D5B49A804867FD3000E48DA /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 8D5B49A704867FD3000E48DA /* InfoPlist.strings */; };
 		993D77CA0F02C9F2006EDD0D /* GetMetadataForFile.m in Sources */ = {isa = PBXBuildFile; fileRef = 993D77C50F02C9F2006EDD0D /* GetMetadataForFile.m */; };
-		993D77D10F02CA32006EDD0D /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 993D77D00F02CA32006EDD0D /* Foundation.framework */; };
+		993D77D10F02CA32006EDD0D /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 993D77D00F02CA32006EDD0D /* Foundation.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 		C1190D611CE52F0900FF1C02 /* CHMKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C1190D5E1CE52EDF00FF1C02 /* CHMKit.framework */; };
 		C1190D6A1CE657C400FF1C02 /* CHMSpotlightHMTLDocument.m in Sources */ = {isa = PBXBuildFile; fileRef = C1190D691CE657C400FF1C02 /* CHMSpotlightHMTLDocument.m */; };
 		C18622091C8E325800C1DD80 /* schema.strings in Resources */ = {isa = PBXBuildFile; fileRef = C88FB7E30674480E006EBB30 /* schema.strings */; };
