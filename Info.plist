@@ -20,15 +20,15 @@
 	<key>CFBundleName</key>
 	<string>${PRODUCT_NAME}</string>
 	<key>CFBundleGetInfoString</key>
-	<string>CHM.mdimporter 1.5, © 2008 Marco Yuen, © 2016 Mark Douma</string>
+	<string>CHM.mdimporter 1.5.1, Copyright © 2008 Marco Yuen, Copyright © 2016 Mark Douma</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.markdouma.mdimporter.${PRODUCT_NAME:identifier}</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.5</string>
+	<string>1.5.1</string>
 	<key>CFBundleVersion</key>
-	<string>150</string>
+	<string>151</string>
 	<key>CFPlugInDynamicRegisterFunction</key>
 	<string></string>
 	<key>CFPlugInDynamicRegistration</key>
