@@ -7,237 +7,146 @@
 //
 
 #import <Foundation/Foundation.h>
-#import <strings.h>
-#import <string.h>
-#import <CHM/CHM.h>
+#import <CHMKit/CHMKit.h>
+#import "CHMSpotlightHMTLDocument.h"
 
 
-// XSLT responsible for stripping out all the tags.
-static NSString * const TagsStripXSLTString = @"\
-<?xml version='1.0' encoding='utf-8'?> \
-<xsl:stylesheet version='1.0' xmlns:xsl='http://www.w3.org/1999/XSL/Transform' xmlns:xhtml='http://www.w3.org/1999/xhtml'> \
-<xsl:output method='text'/> \
-<xsl:template match='xhtml:head'></xsl:template> \
-<xsl:template match='xhtml:script'></xsl:template> \
-</xsl:stylesheet>";
+#define MD_DEBUG 1
+#define MD_DEBUG_PERFORMANCE 0
+
+static NSString * const MDBundleIdentifierKey = @"com.markdouma.mdimporter.CHM";
+
+#if MD_DEBUG
+#define MDLog(...) NSLog(__VA_ARGS__)
+#else
+#define MDLog(...)
+#endif
 
 // 100MB
-static const size_t MAX_FILE_SIZE = 104857600;
-static const NSStringEncoding DEFAULT_ENCODING = NSUTF8StringEncoding;
+#define CHM_MAX_FILE_SIZE 104857600
 
-#pragma mark -
-#pragma mark Custom Attribute
+
+#pragma mark - Custom Attribute
 NSString * const com_marcoyuen_chmImporter_SectionTitles = @"com_marcoyuen_chm_SectionTitles";
 
-#pragma mark -
-#pragma mark Converter
-@interface ChmObjectConverter : NSObject
-{ }
-+ (NSMutableString *) toStringFromCHMHandle:(struct chmFile * const) chmHandle
-                                   unitInfo:(struct chmUnitInfo * const) ui
-                                     retVal:(int *)retVal;
-+ (NSMutableData *) toDataFromCHMHandle:(struct chmFile * const) chmHandle
-                                 unitInfo:(struct chmUnitInfo * const) ui
-                                   retVal:(int *)retVal;
-@end
 
-@implementation ChmObjectConverter
-+ (NSMutableString *) toStringFromCHMHandle:(struct chmFile * const) chmHandle
-                                   unitInfo:(struct chmUnitInfo * const) ui
-                                     retVal:(int *)retVal;
-{
-    static unsigned char buf[BUFSIZ + 1];
-    bzero(buf, BUFSIZ+1);
-    uint64_t totalFileLen = ui->length, offset = 0;
-    int64_t  readLen = 0;
-    NSMutableString *stringData = [[NSMutableString alloc] init];
-    
-    while (totalFileLen != offset) {
-        readLen = chm_retrieve_object(chmHandle, ui, buf, offset, BUFSIZ);
-        if (readLen > 0) {
-            offset += readLen;
-            buf[readLen + 1] = '\0';
-            [stringData appendString:[NSString stringWithCString:(const char *)buf encoding:DEFAULT_ENCODING]];
-        } else {
-            *retVal = CHM_ENUMERATOR_FAILURE;
-            break;
-        }
-    }
-    
-    return [stringData autorelease];
-}
-
-+ (NSMutableData *) toDataFromCHMHandle:(struct chmFile * const) chmHandle
-                               unitInfo:(struct chmUnitInfo * const) ui
-                                 retVal:(int *)retVal
-{
-    static unsigned char buf[BUFSIZ + 1];
-    bzero(buf, BUFSIZ+1);
-    uint64_t totalFileLen = ui->length, offset = 0;
-    int64_t  readLen = 0;
-    NSMutableData *chmData = [[NSMutableData alloc] init];
-    
-    while (totalFileLen != offset) {
-        readLen = chm_retrieve_object(chmHandle, ui, buf, offset, BUFSIZ);
-        if (readLen > 0) {
-            offset += readLen;
-            buf[readLen + 1] = '\0';
-            [chmData appendBytes:buf 
-                          length:readLen];
-        } else {
-            *retVal = CHM_ENUMERATOR_FAILURE;
-            break;
-        }
-    }
-    return [chmData autorelease];
-}
-@end
-
-#pragma mark -
-#pragma mark CHMLib callback
-int 
-extractMetaData(struct chmFile *chmHandle,
-                struct chmUnitInfo *ui,
-                void *context)
-{
-    if (NULL == context) return CHM_ENUMERATOR_FAILURE;
-    NSMutableDictionary *ctxDict = (NSMutableDictionary *)context;
-    int retEnumVal = CHM_ENUMERATOR_CONTINUE;
-    NSError *theError = nil;
-    NSMutableString *strippedDataStr = nil;
-    
-    // Only handle normal file objects within the CHM
-    if ( ui->flags & CHM_ENUMERATE_FILES && ui->flags & CHM_ENUMERATE_NORMAL ) {
-        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-        
-        // Extract metadata from HTML files.
-        if (strcasestr(ui->path, ".htm")) {
-            // Retrieve the chm object as a NSData object.
-            NSData * chmData = [ChmObjectConverter toDataFromCHMHandle:chmHandle unitInfo:ui retVal:&retEnumVal];
-            if (retEnumVal == CHM_ENUMERATOR_FAILURE) goto metadata_cleanup;
-            
-            // Strip HTML tags using NSXMLDocument and XSLT.
-            NSXMLDocument *htmlFile = [[[NSXMLDocument alloc] initWithData:chmData options: NSXMLDocumentTidyHTML error:&theError] autorelease];
-            NSData *strippedData = [htmlFile objectByApplyingXSLTString:TagsStripXSLTString arguments:nil error:&theError];
-            
-            // Debugging
-            // printf("==========================> Data HTML (%s):\n%s\n", ui->path, [[htmlFile XMLData] bytes]);
-            // printf("======================> Finally (%s):\n%s\n", ui->path, [strippedData bytes]);
-            
-            // Set attributes
-            NSMutableString * textContentAttr = [ctxDict objectForKey: (NSString *)kMDItemTextContent];
-            strippedDataStr = [[[NSMutableString alloc] initWithData:strippedData encoding: DEFAULT_ENCODING] autorelease];
-            if (nil == textContentAttr) {
-                [ctxDict setObject:strippedDataStr forKey: (NSString *)kMDItemTextContent];
-            } else {
-                // If the combine size is greater than MAX_FILE_SIZE. Stop enumerating and return.
-                if ([textContentAttr length] + [strippedDataStr length] >= MAX_FILE_SIZE) {
-                    retEnumVal = CHM_ENUMERATOR_SUCCESS;
-                    goto metadata_cleanup;
-                } else {
-                    [textContentAttr appendString:strippedDataStr];
-                }
-            }
-        }
-        
-        // Extract metadata from HHC file.
-        if (strcasestr(ui->path, ".hhc")) {
-            NSMutableData  *hhcData = [ChmObjectConverter toDataFromCHMHandle:chmHandle unitInfo:ui retVal:&retEnumVal];
-            NSXMLDocument *hhcDoc = [[[NSXMLDocument alloc] initWithData:hhcData options:NSXMLDocumentTidyHTML error:&theError] autorelease];
-            if (nil == hhcDoc) {
-                retEnumVal = CHM_ENUMERATOR_CONTINUE;
-                goto metadata_cleanup;
-            }
-            
-            // Usng XPath to get a list of headings. Only top level headings are being traversed.
-            NSXMLNode *rootNode = [hhcDoc rootElement];
-            theError = nil;
-            NSArray *ulNodes = [rootNode nodesForXPath:@"./body/ul/li/object/param[@name=\"Name\"]" error:&theError];
-            if (nil != theError) {
-                // Malform!?
-                NSLog(@"Cannot get the <ul> element from %s", ui->path);
-                retEnumVal = CHM_ENUMERATOR_FAILURE;
-                goto metadata_cleanup;
-            } else if ([ulNodes count] <= 0) {
-                retEnumVal = CHM_ENUMERATOR_CONTINUE;
-                goto metadata_cleanup;
-            }
-            
-            // Start parsing based on heuristics:
-            // 1. The first element is _usually_ the title of the book.
-            // 2. Everything else---title heading.
-            NSXMLElement *curElement = nil;
-            int i = 1;
-            curElement = [ulNodes objectAtIndex:0];
-            NSString *chmTitle = [[curElement attributeForName:@"value"] stringValue];
-            [ctxDict setObject:chmTitle forKey:(NSString *)kMDItemTitle];
-            
-            NSMutableArray * sectionTitles = [NSMutableArray array];
-            for (i = 1; i < [ulNodes count]; ++i) {
-                curElement = [ulNodes objectAtIndex:i];
-                [sectionTitles addObject: [[curElement attributeForName:@"value"] stringValue]];
-            }
-            [ctxDict setObject:sectionTitles forKey:com_marcoyuen_chmImporter_SectionTitles];
-            // NSLog(@"The title:\n%@", sectionTitles);
-        }
-        
-metadata_cleanup:
-        [pool drain], pool = nil;
-    }
-    
-    return retEnumVal;
-}
-
-#pragma mark -
-#pragma mark Importer entrance function
-Boolean 
-GetMetadataForFile(void* thisInterface, 
-                   CFMutableDictionaryRef attributes, 
-                   CFStringRef contentTypeUTI,
-                   CFStringRef pathToFile)
-{
+#pragma mark - Importer entrance function
+Boolean GetMetadataForFile(void *thisInterface, CFMutableDictionaryRef attributes, CFStringRef contentTypeUTI, CFStringRef pathToFile) {
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     
-    char fileNameBuf[[(NSString *)pathToFile length] + 1];
-    struct chmFile *chmHandle = NULL;
-    Boolean retBool = FALSE;
-    NSMutableDictionary *ctxDict = [[NSMutableDictionary alloc] init];
-    
-    // Convert the CFString into a C string.
-    [(NSString *)pathToFile getCString: fileNameBuf maxLength: [(NSString *) pathToFile length] + 1 encoding: DEFAULT_ENCODING];
-    
-    // Open the chm file then enumerate the objects within it.
-    chmHandle = chm_open(fileNameBuf);
-    if (NULL == chmHandle) {
-        fprintf(stderr, "Cannot open '%s'\n", fileNameBuf);
-        retBool = FALSE;
-        goto cleanup;
-    }
-    
-    if (!chm_enumerate(chmHandle, CHM_ENUMERATE_ALL, extractMetaData, (void *)ctxDict)) {
-        fprintf(stderr, "Enumeration failed\n");
-        retBool = FALSE;
-        goto cleanup;
-    }
-    
-    // Set the attributes.
-    [(NSMutableDictionary *)attributes setObject: [ctxDict objectForKey:(NSString*) kMDItemTextContent] 
-                                          forKey: (NSString *)kMDItemTextContent];
-    NSString *title = nil;
-    if ( (title = [ctxDict objectForKey:(NSString *)kMDItemTitle]) != nil ) {
-        [(NSMutableDictionary *)attributes setObject:title forKey:(NSString *)kMDItemTitle];
-    }
-    NSArray *sectionTitles = nil;
-    if ( (sectionTitles = [ctxDict objectForKey:com_marcoyuen_chmImporter_SectionTitles]) != nil ) {
-        [(NSMutableDictionary *)attributes setObject:sectionTitles forKey:com_marcoyuen_chmImporter_SectionTitles];
-    }
-    
-    // Finished setting all the attributes
-    retBool = TRUE;
-    
-cleanup:
-    if (NULL != chmHandle) chm_close(chmHandle);
-    [ctxDict release];
-    [pool release];
-    return retBool;
+#if !MD_DEBUG_PERFORMANCE
+	MDLog(@"%@; %s(): file == \"%@\"", MDBundleIdentifierKey, __FUNCTION__, (NSString *)pathToFile);
+#endif
+	
+#if MD_DEBUG_PERFORMANCE
+	NSDate *startDate = [NSDate date];
+#endif
+	
+	[CHMDocumentFile setAutomaticallyPreparesSearchIndex:NO];
+	
+	CHMDocumentFile *documentFile = [[CHMDocumentFile alloc] initWithContentsOfFile:(NSString *)pathToFile error:NULL];
+	
+	if (documentFile == nil) {
+		NSLog(@"%@; %s(): failed to create CHMDocumentFile for file at \"%@\"", MDBundleIdentifierKey, __FUNCTION__, pathToFile);
+		goto cleanup;
+	}
+	
+	NSMutableDictionary *mAttributes = (NSMutableDictionary *)attributes;
+	
+	NSMutableArray *sectionTitles = [NSMutableArray array];
+	
+	NSArray *sectionLinkItems = documentFile.tableOfContents.linkItems.children;
+	
+	// 1. The first element is _usually_ the title of the book.
+	// 2. Everything else---title heading.
+	
+	BOOL setTitle = NO;
+	
+	if (documentFile.title) {
+		[mAttributes setObject:documentFile.title forKey:(id)kMDItemTitle];
+		setTitle = YES;
+	}
+	
+	for (CHMLinkItem *linkItem in sectionLinkItems) {
+		NSString *sectionTitle = linkItem.name;
+		if (setTitle == NO) {
+			if (sectionTitle) [mAttributes setObject:sectionTitle forKey:(id)kMDItemTitle];
+			setTitle = YES;
+			continue;
+		}
+		if (sectionTitle) [sectionTitles addObject:sectionTitle];
+	}
+	
+	if (sectionTitles.count) {
+		[mAttributes setObject:sectionTitles forKey:com_marcoyuen_chmImporter_SectionTitles];
+	}
+	
+	NSMutableString *mString = [NSMutableString string];
+	
+	NSArray *allArchiveItems = documentFile.allArchiveItems;
+	
+	NSUInteger spotDocCreationErrorCount = 0;
+	
+	NSError *exampleError = nil;
+	
+	for (CHMArchiveItem *archiveItem in allArchiveItems) {
+		
+		if (![archiveItem.pathExtension hasPrefix:@"htm"]) continue;
+		
+		NSAutoreleasePool *localPool = [[NSAutoreleasePool alloc] init];
+		
+		NSError *error = nil;
+		
+		CHMSpotlightHMTLDocument *htmlDocument = [[CHMSpotlightHMTLDocument alloc] initWithArchiveItem:archiveItem inDocumentFile:documentFile error:&error];
+		
+		if (htmlDocument == nil) {
+			if (exampleError != error) {
+				[exampleError release];
+				exampleError = [error retain];
+			}
+			spotDocCreationErrorCount++;
+			[localPool release];
+			continue;
+		}
+		
+		NSString *string = htmlDocument.string;
+		if (string == nil) {
+			[htmlDocument release];
+			[localPool release];
+			continue;
+		}
+		
+		(mString.length ? [mString appendFormat:@" %@", string] : [mString setString:string]);
+		
+		if (mString.length >= CHM_MAX_FILE_SIZE) {
+			[htmlDocument release];
+			[localPool release];
+			break;
+		}
+		
+		[htmlDocument release];
+		[localPool release];
+	}
+	
+	if (mString.length) [mAttributes setObject:mString forKey:(id)kMDItemTextContent];
+	
+	if (spotDocCreationErrorCount) {
+		NSLog(@"%@; %s(): *** ERROR: failed to create %lu CHMSpotlightHMTLDocument(s) for file at \"%@\"; example error == %@", MDBundleIdentifierKey, __FUNCTION__, (unsigned long)spotDocCreationErrorCount, (NSString *)pathToFile, exampleError);
+	}
+	
+	[exampleError release];
+	
+#if MD_DEBUG_PERFORMANCE
+	NSTimeInterval elapsedTime = ABS([startDate timeIntervalSinceNow]);
+	MDLog(@"%@; %s(): elapsed time == %.5f sec (%.4f ms); %@ of text; file == \"%@\"", MDBundleIdentifierKey, __FUNCTION__,elapsedTime, elapsedTime * 1000.0, [NSByteCountFormatter stringFromByteCount:mString.length countStyle:NSByteCountFormatterCountStyleFile], (NSString *)pathToFile);
+#endif
+
+cleanup: {
+	[documentFile release];
+	[pool release];
 }
+	return TRUE;
+	
+}
+	
+
